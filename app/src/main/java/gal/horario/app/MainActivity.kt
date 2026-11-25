@@ -184,7 +184,7 @@ class MainActivity : Activity() {
             val s0 = slots.firstOrNull()
             sess.add(Sess(day, s0?.first ?: 480, s0?.second ?: 530))
         } else group.sortedWith(compareBy({ it.day }, { it.start })).forEach { sess.add(Sess(it.day, it.start, it.end)) }
-        var active = if (old == null) 0 else sess.indexOfFirst { it.day == old.day && it.start == old.start }.coerceAtLeast(0)
+        var active = if (old == null) 0 else sess.indexOfFirst { it.day == old.day && it.st == old.start }.coerceAtLeast(0)
 
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(6), dp(20), 0) }
         val name = EditText(this).apply { hint = "Materia"; setSingleLine(); setText(old?.name ?: "") }
