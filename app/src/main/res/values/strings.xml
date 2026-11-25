@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Horario</string>
+    <string name="w_clock">Reloxo do día</string>
+    <string name="w_sched">Horario semanal</string>
+    <string name="d_clock">O teu día nun reloxo con arcos de cores</string>
+    <string name="d_sched">O horario da semana completo</string>
+</resources>
