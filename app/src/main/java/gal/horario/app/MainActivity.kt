@@ -169,78 +169,99 @@ class MainActivity : Activity() {
         background = round(c, 12); setPadding(dp(12), dp(7), dp(12), dp(7)); setOnClickListener { fn() }
     }
 
+    private class Sess(var day: Int, var st: Int, var en: Int)
+
+    private fun pickTime(cur: Int, fn: (Int) -> Unit) =
+        TimePickerDialog(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK, { _, h, m -> fn(h * 60 + m) }, cur / 60, cur % 60, true).show()
+
     private fun edit(idx: Int?) {
         val old = idx?.let { items[it] }
+        val group = if (old == null) emptyList() else items.filter { it.name == old.name && it.detail == old.detail }
         val slots = items.map { it.start to it.end }.distinct().sortedBy { it.first }
         val used = items.map { it.name to it.detail }.distinct().sortedBy { it.first.lowercase() }
-        var st = old?.start ?: slots.firstOrNull()?.first ?: 480
-        var en = old?.end ?: slots.firstOrNull()?.second ?: 530
-        val sel = mutableSetOf(old?.day ?: day)
+        val sess = mutableListOf<Sess>()
+        if (old == null) {
+            val s0 = slots.firstOrNull()
+            sess.add(Sess(day, s0?.first ?: 480, s0?.second ?: 530))
+        } else group.sortedWith(compareBy({ it.day }, { it.start })).forEach { sess.add(Sess(it.day, it.start, it.end)) }
+        var active = if (old == null) 0 else sess.indexOfFirst { it.day == old.day && it.start == old.start }.coerceAtLeast(0)
+
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(6), dp(20), 0) }
         val name = EditText(this).apply { hint = "Materia"; setSingleLine(); setText(old?.name ?: "") }
         val det = EditText(this).apply { hint = "Grupos, aula... (opcional)"; setSingleLine(); setText(old?.detail ?: "") }
-        val bs = Button(this); val be = Button(this)
-        fun upd() { bs.text = "Inicio  ${Data.fmt(st)}"; be.text = "Fin  ${Data.fmt(en)}" }
-        upd()
-        fun pick(v: Boolean) {
-            val cur = if (v) st else en
-            TimePickerDialog(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK, { _, h, m -> if (v) st = h * 60 + m else en = h * 60 + m; upd() }, cur / 60, cur % 60, true).show()
-        }
-        bs.setOnClickListener { pick(true) }; be.setOnClickListener { pick(false) }
-        fun row(v: List<View>) = HorizontalScrollView(this).apply {
+        fun label(t: String, top: Int = 12) { box.addView(TextView(this).apply { text = t; textSize = 12f; setTextColor(MUT) }, lp(-1, -2, t = top, b = 4)) }
+        fun hrow(v: List<View>) = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@MainActivity).apply { v.forEach { addView(it, lp(-2, -2, r = 6)) } })
         }
-        fun label(t: String, top: Int = 12) = TextView(this).apply { text = t; textSize = 12f; setTextColor(MUT) }.also { box.addView(it, lp(-1, -2, t = top, b = 4)) }
+        fun sp(t: String, fn: () -> Unit) = TextView(this).apply {
+            text = t; textSize = 15f; setTextColor(INK); gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD
+            background = round(Color.parseColor("#2B3050"), 10); setPadding(0, dp(10), 0, dp(10)); setOnClickListener { fn() }
+        }
 
-        label("Días (podes marcar varios)", 0)
-        val dayRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val dayChips = Data.SHORT.mapIndexed { i, n -> TextView(this).apply {
-            text = n; gravity = Gravity.CENTER; textSize = 13f; typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, dp(9), 0, dp(9))
-        } }
-        fun paintDays() = dayChips.forEachIndexed { i, t ->
-            val on = i in sel
-            t.setTextColor(if (on) DARK else INK); t.background = round(if (on) INK else CARD, 12)
+        val sessBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun renderS() {
+            sessBox.removeAllViews()
+            sess.forEachIndexed { i, s ->
+                val r = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                    background = round(if (i == active) Color.parseColor("#4F5890") else CARD, 12)
+                    setPadding(dp(6), dp(6), dp(6), dp(6)); setOnClickListener { active = i; renderS() }
+                }
+                r.addView(sp(Data.SHORT[s.day]) {
+                    AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setItems(Data.DAYS) { _, w -> s.day = w; active = i; renderS() }.show()
+                }, lp(0, -2, wt = 1.1f))
+                r.addView(sp(Data.fmt(s.st)) { pickTime(s.st) { v -> s.st = v; active = i; renderS() } }, lp(0, -2, l = 6, wt = 1f))
+                r.addView(TextView(this).apply { text = "–"; setTextColor(MUT); gravity = Gravity.CENTER }, lp(dp(18), -2))
+                r.addView(sp(Data.fmt(s.en)) { pickTime(s.en) { v -> s.en = v; active = i; renderS() } }, lp(0, -2, wt = 1f))
+                r.addView(sp("✕") {
+                    if (sess.size > 1) { sess.removeAt(i); active = minOf(active, sess.size - 1); renderS() }
+                    else toast("Debe haber polo menos unha sesión")
+                }, lp(dp(40), -2, l = 6))
+                sessBox.addView(r, lp(-1, -2, b = 6))
+            }
         }
-        dayChips.forEachIndexed { i, t ->
-            t.setOnClickListener { if (i in sel) sel.remove(i) else sel.add(i); paintDays() }
-            dayRow.addView(t, lp(0, -2, l = if (i == 0) 0 else 4, wt = 1f))
-        }
-        paintDays(); box.addView(dayRow)
 
         if (used.isNotEmpty()) {
-            label("Materias que xa usaches (toca para copiar)")
-            box.addView(row(used.map { (n, d) -> chip(if (d.isEmpty()) n else "$n · $d", Data.color(n)) {
+            label("Materias que xa usaches (toca para copiar)", 0)
+            box.addView(hrow(used.map { (n, d) -> chip(if (d.isEmpty()) n else "$n · $d", Data.color(n)) {
                 name.setText(n); det.setText(d); name.setSelection(n.length) } }))
         }
-        label("Materia")
+        label("Materia", if (used.isNotEmpty()) 12 else 0)
         box.addView(name); box.addView(det)
+        label("Sesións: día e hora (cada día pode ter a súa hora)")
+        box.addView(sessBox)
+        box.addView(TextView(this).apply {
+            text = "+  Outro día ou hora"; textSize = 14f; setTextColor(INK); gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD
+            background = round(CARD, 12); setPadding(0, dp(10), 0, dp(10))
+            setOnClickListener {
+                val l = sess.last()
+                sess.add(Sess(minOf(l.day + 1, 4), l.st, l.en)); active = sess.size - 1; renderS()
+            }
+        })
         if (slots.isNotEmpty()) {
-            label("Franxas que xa usaches")
-            box.addView(row(slots.map { (a, b) -> chip("${Data.fmt(a)}–${Data.fmt(b)}", Color.parseColor("#C9CEE8")) { st = a; en = b; upd() } }))
+            label("Franxas que xa usaches (aplícanse á sesión marcada)")
+            box.addView(hrow(slots.map { (a2, b2) -> chip("${Data.fmt(a2)}–${Data.fmt(b2)}", Color.parseColor("#C9CEE8")) {
+                sess[active].st = a2; sess[active].en = b2; renderS() } }))
         }
-        label("Hora")
-        val tr = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        tr.addView(bs, lp(0, -2, wt = 1f)); tr.addView(be, lp(0, -2, wt = 1f))
-        box.addView(tr)
+        renderS()
 
         val b = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle(if (old == null) "Nova clase" else "Editar clase")
+            .setTitle(if (old == null) "Nova materia" else "Editar materia")
             .setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton("Gardar", null).setNegativeButton("Cancelar", null)
-        if (idx != null) b.setNeutralButton("Eliminar") { _, _ -> items.removeAt(idx); commit() }
+        if (idx != null) b.setNeutralButton("Eliminar materia") { _, _ -> items.removeAll(group.toSet()); commit() }
         val d = b.create(); d.show()
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val nm = name.text.toString().trim().replace(";", ",")
+            val bad = sess.firstOrNull { it.en <= it.st }
             when {
                 nm.isEmpty() -> toast("Pon un nome á materia")
-                en <= st -> toast("A hora de fin debe ser despois da de inicio")
-                sel.isEmpty() -> toast("Marca polo menos un día")
+                bad != null -> toast("${Data.DAYS[bad.day]}: a hora de fin debe ser despois da de inicio")
                 else -> {
                     val dt = det.text.toString().trim().replace(";", ",")
-                    if (idx != null) items.removeAt(idx)
-                    sel.sorted().forEach { dd -> items.add(Item(dd, st, en, nm, dt)) }
+                    items.removeAll(group.toSet())
+                    sess.forEach { s -> items.add(Item(s.day, s.st, s.en, nm, dt)) }
                     items = items.distinct().toMutableList()
                     commit(); d.dismiss()
                 }
