@@ -3,11 +3,10 @@ package gal.horario.app
 import android.graphics.*
 
 object Renderer {
-    private const val S = Data.S
-    private const val E = Data.E
-    private val INK = Color.parseColor("#F3EFE6")
-    private val MUT = Color.parseColor("#8B8FA6")
-    private val LINE = Color.parseColor("#262A40")
+    private val INK = Color.parseColor("#F4F0EA")
+    private val MUT = Color.parseColor("#A4AAC8")
+    private val LINE = Color.parseColor("#3B4268")
+    private val DARK = Color.parseColor("#1D2137")
 
     private fun paint(c: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = c }
     private fun fit(p: Paint, t: String, maxW: Float, size: Float) {
@@ -18,20 +17,26 @@ object Renderer {
         val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(b)
         val r = minOf(w, h) * 0.09f
-        c.drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), r, r, paint(Color.parseColor(Data.BG)))
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), Color.parseColor("#363C63"), Color.parseColor("#1F2339"), Shader.TileMode.CLAMP)
+        c.drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), r, r, p)
         return b to c
     }
 
     fun clock(w: Int, h: Int, items: List<Item>, day: Int, now: Int, live: Boolean): Bitmap {
+        val (S, E) = Data.range(items)
         val (b, c) = base(w, h)
-        val m = minOf(w, h).toFloat()
-        val cx = w / 2f; val cy = h / 2f
-        val rad = m * 0.36f; val sw = m * 0.085f
+        val tall = h > w * 1.3f
+        val wide = w > h * 1.45f
+        val m = when { tall -> w.toFloat(); wide -> h.toFloat(); else -> minOf(w, h).toFloat() }
+        val cx = if (wide) m / 2f else w / 2f
+        val cy = if (tall) m / 2f else h / 2f
+        val rad = m * 0.35f; val sw = m * 0.085f
         val oval = RectF(cx - rad, cy - rad, cx + rad, cy + rad)
         fun ang(x: Int) = -150f + (x - S) / (E - S).toFloat() * 300f
         val pa = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = sw; color = LINE }
         c.drawArc(oval, ang(S) - 90f, 300f, false, pa)
-        val today = items.filter { it.day == day }
+        val today = items.filter { it.day == day }.sortedBy { it.start }
         today.forEach {
             pa.color = Data.color(it.name)
             val a0 = ang(it.start.coerceIn(S, E)); val a1 = ang(it.end.coerceIn(S, E))
@@ -54,19 +59,51 @@ object Renderer {
             live -> "Libre"
             else -> "${today.size} clases"
         }
-        val small = if (live) "Agora" else Data.DAYS[day]
-        val detail = if (cur != null) "quedan ${cur.end - now} min" else ""
         fit(tp, title, rad * 1.5f, rad * 0.3f)
         c.drawText(title, cx, cy + tp.textSize * 0.3f, tp)
         sp.textSize = rad * 0.17f
-        c.drawText(small, cx, cy - rad * 0.42f, sp)
-        c.drawText(detail, cx, cy + rad * 0.55f, sp)
+        c.drawText(if (live) "Agora" else Data.DAYS[day], cx, cy - rad * 0.42f, sp)
+        if (cur != null) c.drawText("quedan ${cur.end - now} min", cx, cy + rad * 0.55f, sp)
+
+        if (tall || wide) {
+            val pad = m * 0.06f
+            val rg = if (tall) RectF(pad, m * 0.98f, w - pad, h - pad) else RectF(m * 0.98f, pad, w - pad, h - pad)
+            val shown = if (live) today.filter { it.end > now } else today
+            val ts = m * 0.07f; val rowH = ts * 2.3f
+            val max = (rg.height() / rowH).toInt()
+            val np = paint(MUT).apply { textSize = ts }
+            if (shown.isEmpty()) c.drawText("Sen máis clases hoxe", rg.left + 6f, rg.top + ts * 1.4f, np)
+            var y = rg.top
+            shown.take(max).forEach {
+                val isCur = live && now >= it.start && now < it.end
+                if (isCur) c.drawRoundRect(rg.left, y, rg.right, y + rowH - 4f, 14f, 14f, paint(Color.argb(38, 255, 255, 255)))
+                c.drawRoundRect(rg.left + 8f, y + rowH * 0.18f, rg.left + 14f, y + rowH - rowH * 0.18f - 4f, 4f, 4f, paint(Data.color(it.name)))
+                val base = y + rowH / 2f + ts * 0.3f
+                np.textSize = ts * 0.78f
+                c.drawText(Data.fmt(it.start), rg.left + 26f, base, np)
+                val nx = rg.left + 26f + ts * 3.1f
+                val nm = paint(INK).apply { typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+                fit(nm, it.name, rg.right - nx - 6f, ts)
+                c.drawText(it.name, nx, base, nm)
+                if (it.detail.isNotEmpty()) {
+                    val dx = nx + nm.measureText(it.name) + ts * 0.5f
+                    val room = rg.right - dx - 6f
+                    if (room > ts * 2) {
+                        val dp = paint(MUT)
+                        fit(dp, it.detail, room, ts * 0.72f)
+                        c.drawText(it.detail, dx, base, dp)
+                    }
+                }
+                y += rowH
+            }
+        }
         return b
     }
 
     fun schedule(w: Int, h: Int, items: List<Item>, today: Int, now: Int): Bitmap {
+        val (S, E) = Data.range(items)
         val (b, c) = base(w, h)
-        val pad = w * 0.025f; val hh = h * 0.12f; val lw = w * 0.07f
+        val pad = w * 0.025f; val hh = h * 0.11f; val lw = w * 0.07f
         val cw = (w - lw - pad) / 5f
         val top = pad + hh; val ht = h - top - pad
         fun y(x: Int) = top + (x.coerceIn(S, E) - S) / (E - S).toFloat() * ht
@@ -74,24 +111,24 @@ object Renderer {
         val mp = paint(MUT).apply { textAlign = Paint.Align.CENTER }
         for (d in 0..4) {
             val x0 = lw + d * cw
-            if (d == today) c.drawRoundRect(x0 + 2, pad, x0 + cw - 2, pad + hh - 4, 10f, 10f, paint(INK))
-            tp.color = if (d == today) Color.parseColor(Data.BG) else INK
+            if (d == today) c.drawRoundRect(x0 + 2, pad, x0 + cw - 2, pad + hh - 4, 12f, 12f, paint(INK))
+            tp.color = if (d == today) DARK else INK
             fit(tp, Data.SHORT[d], cw * 0.8f, hh * 0.45f)
             c.drawText(Data.SHORT[d], x0 + cw / 2, pad + hh * 0.62f, tp)
         }
         val lp = paint(LINE).apply { strokeWidth = 1f }
         mp.textSize = hh * 0.34f
-        for (hr in 9..14) {
+        for (hr in ((S + 59) / 60)..(E / 60)) {
             c.drawLine(lw, y(hr * 60), w - pad, y(hr * 60), lp)
             c.drawText("$hr", lw / 2, y(hr * 60) + mp.textSize * 0.35f, mp)
         }
         val cp = Paint(Paint.ANTI_ALIAS_FLAG)
-        val ip = paint(Color.parseColor(Data.BG)).apply { textAlign = Paint.Align.CENTER }
+        val ip = paint(DARK).apply { textAlign = Paint.Align.CENTER }
         items.forEach {
             val x0 = lw + it.day * cw + 2
             val r = RectF(x0, y(it.start) + 1, x0 + cw - 4, y(it.end) - 1)
             cp.color = Data.color(it.name)
-            c.drawRoundRect(r, 9f, 9f, cp)
+            c.drawRoundRect(r, 10f, 10f, cp)
             if (r.height() > 18f) {
                 ip.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 fit(ip, it.name, r.width() * 0.88f, minOf(r.height() * 0.4f, cw * 0.2f))

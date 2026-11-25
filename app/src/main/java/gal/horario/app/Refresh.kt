@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.widget.RemoteViews
 import java.util.Calendar
@@ -24,8 +25,11 @@ object Refresh {
     fun update(ctx: Context, m: AppWidgetManager, id: Int, kind: Int) {
         val o = m.getAppWidgetOptions(id)
         val d = ctx.resources.displayMetrics.density
-        var w = (o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200) * d).toInt().coerceAtLeast(100)
-        var h = (o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200) * d).toInt().coerceAtLeast(100)
+        val land = ctx.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val wd = o.getInt(if (land) AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH else AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+        val hd = o.getInt(if (land) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 200)
+        var w = (wd * d).toInt().coerceAtLeast(100)
+        var h = (hd * d).toInt().coerceAtLeast(100)
         val s = Math.sqrt(380_000.0 / (w.toDouble() * h))
         if (s < 1) { w = (w * s).toInt(); h = (h * s).toInt() }
         val cal = Calendar.getInstance()
