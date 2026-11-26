@@ -39,13 +39,46 @@ object Data {
 
     fun fmt(m: Int) = "%d:%02d".format(m / 60, m % 60)
 
-    fun load(c: Context): String = c.getSharedPreferences("h", 0).getString("t", "") ?: ""
-    fun save(c: Context, t: String) { c.getSharedPreferences("h", 0).edit().putString("t", t).apply() }
+    private fun P(c: Context) = c.getSharedPreferences("h", 0)
+
+    /** Primeira vez: o horario que xa había gardado pasa a ser o horario 1. */
+    private fun ensure(c: Context) {
+        val p = P(c)
+        if (p.contains("ids")) return
+        p.edit().putString("ids", "1").putString("active", "1").putString("n_1", "Horario 1")
+            .putString("t_1", p.getString("t", "")).putString("c_1", p.getString("c", "")).apply()
+    }
+    private fun idList(c: Context): List<String> { ensure(c); return (P(c).getString("ids", "1") ?: "1").split(",").filter { it.isNotEmpty() } }
+    fun activeId(c: Context): String { val l = idList(c); val a = P(c).getString("active", "1") ?: "1"; return if (a in l) a else l.first() }
+    fun profiles(c: Context): List<Pair<String, String>> = idList(c).map { it to (P(c).getString("n_$it", "Horario") ?: "Horario") }
+    fun activeName(c: Context): String = profiles(c).firstOrNull { it.first == activeId(c) }?.second ?: "Horario"
+    fun setActive(c: Context, id: String) { P(c).edit().putString("active", id).apply() }
+    fun renameProfile(c: Context, id: String, name: String) { P(c).edit().putString("n_$id", name).apply() }
+
+    fun addProfile(c: Context, name: String, copyFrom: String?): String {
+        val l = idList(c); val p = P(c)
+        val id = ((l.mapNotNull { it.toIntOrNull() }.maxOrNull() ?: 0) + 1).toString()
+        p.edit().putString("ids", (l + id).joinToString(",")).putString("n_$id", name)
+            .putString("t_$id", if (copyFrom != null) p.getString("t_$copyFrom", "") else "")
+            .putString("c_$id", if (copyFrom != null) p.getString("c_$copyFrom", "") else "").apply()
+        return id
+    }
+
+    fun deleteProfile(c: Context, id: String) {
+        val l = idList(c); if (l.size <= 1) return
+        val rest = l - id
+        val e = P(c).edit().putString("ids", rest.joinToString(",")).remove("n_$id").remove("t_$id").remove("c_$id")
+        if (activeId(c) == id) e.putString("active", rest.first())
+        e.apply()
+    }
+
+    fun load(c: Context): String { ensure(c); return P(c).getString("t_${activeId(c)}", "") ?: "" }
+    fun save(c: Context, t: String) { ensure(c); P(c).edit().putString("t_${activeId(c)}", t).apply() }
     fun items(c: Context): List<Item> { loadColors(c); val l = parse(load(c)); assign(c, l); return l }
     fun saveItems(c: Context, l: List<Item>) { save(c, serialize(l)); loadColors(c); assign(c, l) }
 
     private fun loadColors(c: Context) {
-        cmap = (c.getSharedPreferences("h", 0).getString("c", "") ?: "").lines().mapNotNull {
+        cmap = (P(c).getString("c_${activeId(c)}", "") ?: "").lines().mapNotNull {
             val p = it.split("\t"); if (p.size == 2) p[0] to (p[1].toIntOrNull() ?: return@mapNotNull null) else null
         }.toMap()
     }
@@ -68,7 +101,7 @@ object Data {
     }
 
     private fun persist(c: Context, m: Map<String, Int>) {
-        c.getSharedPreferences("h", 0).edit().putString("c", m.entries.joinToString("\n") { "${it.key}\t${it.value}" }).apply()
+        P(c).edit().putString("c_${activeId(c)}", m.entries.joinToString("\n") { "${it.key}\t${it.value}" }).apply()
     }
 
     /** Fixa a cor dunha materia. Se outra materia xa a tiña, troca a súa cor pola anterior desta. */

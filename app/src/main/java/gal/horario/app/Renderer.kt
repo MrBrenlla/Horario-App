@@ -38,9 +38,10 @@ object Renderer {
         val (b, c) = base(w, h)
         val tall = h > w * 1.3f
         val wide = w > h * 1.45f
-        val m = when { tall -> w.toFloat(); wide -> h.toFloat(); else -> minOf(w, h).toFloat() }
+        val m = when { tall -> w.toFloat(); wide -> h / 1.16f; else -> minOf(w.toFloat(), h / 1.16f) }
+        val top = if (tall) 0f else (h - m * 1.16f) / 2f
         val cx = if (wide) m / 2f else w / 2f
-        val cy = if (tall) m / 2f else h / 2f
+        val cy = top + m / 2f
         val rad = m * 0.35f; val sw = m * 0.085f
         val oval = RectF(cx - rad, cy - rad, cx + rad, cy + rad)
         fun ang(x: Int) = -150f + (x - S) / (E - S).toFloat() * 300f
@@ -87,13 +88,13 @@ object Renderer {
             val rl = Data.roomLabel(ni.room)
             val txt = "Seguinte · $pre${Data.fmt(ni.start)} ${ni.name}" + (if (rl.isEmpty()) "" else " · $rl")
             val np2 = paint(INK).apply { textAlign = Paint.Align.CENTER }
-            fit(np2, txt, rad * 1.25f, rad * 0.15f)
-            c.drawText(txt, cx, cy + rad * 0.62f, np2)
+            fit(np2, txt, (if (wide) m else w.toFloat()) * 0.94f, m * 0.065f)
+            c.drawText(txt, cx, top + m * 1.1f, np2)
         }
 
         if (tall || wide) {
             val pad = m * 0.06f
-            val rg = if (tall) RectF(pad, m * 0.98f, w - pad, h - pad) else RectF(m * 0.98f, pad, w - pad, h - pad)
+            val rg = if (tall) RectF(pad, m * 1.16f, w - pad, h - pad) else RectF(m * 0.98f, pad, w - pad, h - pad)
             val shown = if (live) today.filter { it.end > now } else today
             val ts = m * 0.07f; val rowH = ts * 2.3f
             val max = (rg.height() / rowH).toInt()

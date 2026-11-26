@@ -24,6 +24,7 @@ class MainActivity : Activity() {
     private val REQ_EXPORT = 2
     private var items: MutableList<Item> = mutableListOf()
     private lateinit var tabs: LinearLayout
+    private lateinit var profilePill: TextView
     private lateinit var list: LinearLayout
     private var day = 0
 
@@ -53,6 +54,11 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply {
             text = "Elixe un día e toca unha clase para editala."; textSize = 14f; setTextColor(MUT)
         }, lp(-1, -2, b = 14))
+        profilePill = TextView(this).apply {
+            textSize = 14f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD; background = round(CARD, 14)
+            setPadding(dp(14), dp(9), dp(14), dp(9)); setOnClickListener { showProfiles() }
+        }
+        root.addView(profilePill, lp(-2, -2, b = 12))
         tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         root.addView(tabs, lp(-1, -2, b = 12))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -76,6 +82,7 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
+        profilePill.text = "${Data.activeName(this)}  ▾"
         tabs.removeAllViews()
         Data.SHORT.forEachIndexed { i, n ->
             val on = i == day
@@ -122,6 +129,38 @@ class MainActivity : Activity() {
         list.addView(util, lp(-1, -2, t = 10, b = 10))
     }
 
+    private fun ask(title: String, initial: String, ok: (String) -> Unit) {
+        val et = EditText(this).apply { setText(initial); setSingleLine(); setSelection(initial.length) }
+        val box = FrameLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(et) }
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(title).setView(box)
+            .setPositiveButton("Aceptar") { _, _ -> val t = et.text.toString().trim(); if (t.isNotEmpty()) ok(t) }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun reload() { items = Data.items(this).toMutableList(); Refresh.all(this); render() }
+
+    private fun showProfiles() {
+        val ps = Data.profiles(this); val act = Data.activeId(this)
+        val labels = ps.map { (id, n) -> if (id == act) "✓  $n" else "     $n" } +
+            listOf("+  Novo horario", "Duplicar o activo", "Renomear o activo", "Eliminar o activo")
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Os teus horarios")
+            .setItems(labels.toTypedArray()) { _, w ->
+                when {
+                    w < ps.size -> { Data.setActive(this, ps[w].first); reload() }
+                    w == ps.size -> ask("Nome do novo horario", "") { n -> Data.setActive(this, Data.addProfile(this, n, null)); reload() }
+                    w == ps.size + 1 -> { val n = Data.activeName(this) + " (copia)"; Data.setActive(this, Data.addProfile(this, n, act)); reload() }
+                    w == ps.size + 2 -> ask("Renomear horario", Data.activeName(this)) { n -> Data.renameProfile(this, act, n); render() }
+                    else -> {
+                        if (ps.size <= 1) toast("Non podes eliminar o único horario")
+                        else AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                            .setMessage("Eliminar «${Data.activeName(this)}» con todas as súas clases?")
+                            .setPositiveButton("Eliminar") { _, _ -> Data.deleteProfile(this, act); reload() }
+                            .setNegativeButton("Cancelar", null).show()
+                    }
+                }
+            }.show()
+    }
+
     private fun commit() { Data.saveItems(this, items); Refresh.all(this); render() }
 
     private fun startImport() {
@@ -131,7 +170,8 @@ class MainActivity : Activity() {
     private fun startExport() {
         if (items.isEmpty()) { toast("Aínda non hai clases para exportar"); return }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("text/plain").putExtra(Intent.EXTRA_TITLE, "horario.txt"), REQ_EXPORT)
+            .setType("text/plain").putExtra(Intent.EXTRA_TITLE,
+                Data.activeName(this).filter { ch -> ch.isLetterOrDigit() || ch == ' ' || ch == '_' || ch == '-' }.ifBlank { "horario" } + ".txt"), REQ_EXPORT)
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
@@ -163,7 +203,7 @@ class MainActivity : Activity() {
     private fun confirmClear() {
         if (items.isEmpty()) return
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setMessage("Queres borrar todas as clases? Podes exportalas antes.")
+            .setMessage("Queres borrar todas as clases deste horario? Podes exportalas antes.")
             .setPositiveButton("Borrar") { _, _ -> items.clear(); commit() }
             .setNegativeButton("Cancelar", null).show()
     }
