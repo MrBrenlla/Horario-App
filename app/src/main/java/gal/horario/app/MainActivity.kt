@@ -220,7 +220,7 @@ class MainActivity : Activity() {
 
     private fun edit(idx: Int?) {
         val old = idx?.let { items[it] }
-        val group = if (old == null) emptyList() else items.filter { it.name == old.name && it.detail == old.detail }
+        val group = if (old == null) emptyList<Item>() else items.filter { it.name == old.name && it.detail == old.detail }
         val slots = items.map { it.start to it.end }.distinct().sortedBy { it.first }
         val used = items.map { it.name to it.detail }.distinct().sortedBy { it.first.lowercase() }
         val sess = mutableListOf<Sess>()

@@ -132,16 +132,16 @@ object Data {
 
     fun parse(t: String): List<Item> = t.lines().flatMap { l ->
         try {
-            if (l.trim().startsWith("#")) emptyList() else {
+            if (l.trim().startsWith("#")) emptyList<Item>() else {
                 val p = l.split(";").map { it.trim() }
-                if (p.size < 4) emptyList() else {
+                if (p.size < 4) emptyList<Item>() else {
                     val s = mins(p[1]); val e = mins(p[2])
                     val days = p[0].split(",").map { dayOf(it) }
-                    if (days.any { it < 0 } || e <= s || p[3].isEmpty()) emptyList()
+                    if (days.any { it < 0 } || e <= s || p[3].isEmpty()) emptyList<Item>()
                     else days.map { Item(it, s, e, p[3], p.getOrElse(4) { "" }, p.getOrElse(5) { "" }, p.getOrElse(6) { "" }.lowercase().let { v -> v == "outra" || v == "outras" }) }
                 }
             }
-        } catch (e: Exception) { emptyList() }
+        } catch (e: Exception) { emptyList<Item>() }
     }.distinct()
 
     fun shape(n: String): Int = cmap[key(n)] ?: ((key(n).hashCode() and 0x7fffffff) % PALETTE.size)
