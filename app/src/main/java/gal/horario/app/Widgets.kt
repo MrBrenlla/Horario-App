@@ -21,5 +21,9 @@ class ClockWidget : BaseWidget(0)
 class ScheduleWidget : BaseWidget(1)
 
 class TickReceiver : BroadcastReceiver() {
-    override fun onReceive(ctx: Context, i: Intent) { Refresh.all(ctx) }
+    companion object { const val REFRESH = "gal.horario.app.REFRESH" }
+    override fun onReceive(ctx: Context, i: Intent) {
+        Refresh.all(ctx)
+        if (i.action == REFRESH) android.widget.Toast.makeText(ctx, "Widget actualizado", android.widget.Toast.LENGTH_SHORT).show()
+    }
 }

@@ -4,4 +4,5 @@
     <string name="w_sched">Horario semanal</string>
     <string name="d_clock">O teu día nun reloxo con arcos de cores</string>
     <string name="d_sched">O horario da semana completo</string>
+    <string name="refresh">Recargar</string>
 </resources>

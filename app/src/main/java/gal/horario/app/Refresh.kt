@@ -36,13 +36,16 @@ object Refresh {
         val dow = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
         val now = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
         val items = Data.items(ctx)
-        val bmp = if (kind == 0) Renderer.clock(w, h, items, if (dow < 5) dow else 0, now, dow < 5)
+        val bmp = if (kind == 0) Renderer.clock(w, h, items, if (dow < 5) dow else 0, now, dow < 5, dow)
                   else Renderer.schedule(w, h, items, if (dow < 5) dow else -1, now)
         val rv = RemoteViews(ctx.packageName, R.layout.widget_image)
         rv.setImageViewBitmap(R.id.img, bmp)
         val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         rv.setOnClickPendingIntent(R.id.root, open)
+        val ref = PendingIntent.getBroadcast(ctx, 2, Intent(ctx, TickReceiver::class.java).setAction(TickReceiver.REFRESH),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        rv.setOnClickPendingIntent(R.id.refresh, ref)
         m.updateAppWidget(id, rv)
     }
 

@@ -8,6 +8,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -97,14 +99,16 @@ class MainActivity : Activity() {
         rows.forEach { (idx, row) ->
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                background = round(CARD, 18); setPadding(dp(12), dp(12), dp(16), dp(12))
+                background = if (row.other) StripeDrawable(CARD, Color.argb(40, 255, 255, 255), dp(18).toFloat(), dp(10).toFloat(), dp(3).toFloat()) else round(CARD, 18)
+                setPadding(dp(12), dp(12), dp(16), dp(12))
                 setOnClickListener { edit(idx) }
             }
             card.addView(View(this).apply { background = round(Data.color(row.name), 4) },
                 LinearLayout.LayoutParams(dp(6), dp(46)).apply { rightMargin = dp(14) })
             val tx = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            tx.addView(TextView(this).apply { text = row.name; textSize = 19f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD })
-            if (row.detail.isNotEmpty()) tx.addView(TextView(this).apply { text = row.detail; textSize = 13f; setTextColor(MUT) })
+            tx.addView(TextView(this).apply { text = "${Data.GLYPHS[Data.shape(row.name)]}  ${row.name}"; textSize = 19f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD })
+            val sub = listOf(row.detail, Data.roomLabel(row.room)).filter { s -> s.isNotEmpty() }.joinToString(" · ")
+            if (sub.isNotEmpty()) tx.addView(TextView(this).apply { text = sub; textSize = 13f; setTextColor(MUT) })
             card.addView(tx, lp(0, -2, wt = 1f))
             card.addView(TextView(this).apply {
                 text = "${Data.fmt(row.start)}\n${Data.fmt(row.end)}"; textSize = 13f; setTextColor(MUT); gravity = Gravity.END
@@ -165,11 +169,11 @@ class MainActivity : Activity() {
     }
 
     private fun chip(t: String, c: Int, fn: () -> Unit) = TextView(this).apply {
-        text = t; textSize = 13f; setTextColor(DARK); typeface = Typeface.DEFAULT_BOLD
+        text = t; textSize = 13f; setTextColor(Data.textOn(c)); typeface = Typeface.DEFAULT_BOLD
         background = round(c, 12); setPadding(dp(12), dp(7), dp(12), dp(7)); setOnClickListener { fn() }
     }
 
-    private class Sess(var day: Int, var st: Int, var en: Int)
+    private class Sess(var day: Int, var st: Int, var en: Int, var room: String = "")
 
     private fun pickTime(cur: Int, fn: (Int) -> Unit) =
         TimePickerDialog(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK, { _, h, m -> fn(h * 60 + m) }, cur / 60, cur % 60, true).show()
@@ -180,10 +184,13 @@ class MainActivity : Activity() {
         val slots = items.map { it.start to it.end }.distinct().sortedBy { it.first }
         val used = items.map { it.name to it.detail }.distinct().sortedBy { it.first.lowercase() }
         val sess = mutableListOf<Sess>()
+        var picked: Int? = old?.let { Data.shape(it.name) }
+        var other = old?.other ?: false
+        var refresh: () -> Unit = {}
         if (old == null) {
             val s0 = slots.firstOrNull()
             sess.add(Sess(day, s0?.first ?: 480, s0?.second ?: 530))
-        } else group.sortedWith(compareBy({ it.day }, { it.start })).forEach { sess.add(Sess(it.day, it.start, it.end)) }
+        } else group.sortedWith(compareBy({ it.day }, { it.start })).forEach { sess.add(Sess(it.day, it.start, it.end, it.room)) }
         var active = if (old == null) 0 else sess.indexOfFirst { it.day == old.day && it.st == old.start }.coerceAtLeast(0)
 
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(6), dp(20), 0) }
@@ -203,11 +210,12 @@ class MainActivity : Activity() {
         fun renderS() {
             sessBox.removeAllViews()
             sess.forEachIndexed { i, s ->
-                val r = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                val wrap = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
                     background = round(if (i == active) Color.parseColor("#4F5890") else CARD, 12)
-                    setPadding(dp(6), dp(6), dp(6), dp(6)); setOnClickListener { active = i; renderS() }
+                    setPadding(dp(6), dp(6), dp(6), dp(6))
                 }
+                val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 r.addView(sp(Data.SHORT[s.day]) {
                     AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setItems(Data.DAYS) { _, w -> s.day = w; active = i; renderS() }.show()
                 }, lp(0, -2, wt = 1.1f))
@@ -218,25 +226,75 @@ class MainActivity : Activity() {
                     if (sess.size > 1) { sess.removeAt(i); active = minOf(active, sess.size - 1); renderS() }
                     else toast("Debe haber polo menos unha sesión")
                 }, lp(dp(40), -2, l = 6))
-                sessBox.addView(r, lp(-1, -2, b = 6))
+                wrap.addView(r)
+                wrap.addView(EditText(this).apply {
+                    hint = "Aula desta sesión (opcional)"; setSingleLine(); textSize = 14f; setText(s.room)
+                    addTextChangedListener(object : TextWatcher {
+                        override fun afterTextChanged(e: Editable?) { s.room = e?.toString() ?: "" }
+                        override fun beforeTextChanged(a: CharSequence?, st: Int, cn: Int, af: Int) {}
+                        override fun onTextChanged(a: CharSequence?, st: Int, bf: Int, cn: Int) {}
+                    })
+                    setOnFocusChangeListener { _, f -> if (f) active = i }
+                })
+                sessBox.addView(wrap, lp(-1, -2, b = 8))
             }
         }
 
         if (used.isNotEmpty()) {
             label("Materias que xa usaches (toca para copiar)", 0)
-            box.addView(hrow(used.map { (n, d) -> chip(if (d.isEmpty()) n else "$n · $d", Data.color(n)) {
-                name.setText(n); det.setText(d); name.setSelection(n.length) } }))
+            box.addView(hrow(used.map { (n, d) -> chip("${Data.GLYPHS[Data.shape(n)]} " + (if (d.isEmpty()) n else "$n · $d"), Data.color(n)) {
+                name.setText(n); det.setText(d); name.setSelection(n.length)
+                other = items.firstOrNull { x -> x.name == n && x.detail == d }?.other ?: false
+                picked = Data.shape(n); refresh() } }))
         }
         label("Materia", if (used.isNotEmpty()) 12 else 0)
         box.addView(name); box.addView(det)
-        label("Sesións: día e hora (cada día pode ter a súa hora)")
+        label("Tipo de materia")
+        val tClase = TextView(this); val tOutra = TextView(this)
+        fun paintT() {
+            tClase.setTextColor(if (!other) DARK else INK); tClase.background = round(if (!other) INK else CARD, 12)
+            tOutra.setTextColor(if (other) DARK else INK)
+            tOutra.background = if (other) StripeDrawable(INK, Color.argb(55, 29, 33, 55), dp(12).toFloat(), dp(10).toFloat(), dp(3).toFloat())
+                                else StripeDrawable(CARD, Color.argb(45, 255, 255, 255), dp(12).toFloat(), dp(10).toFloat(), dp(3).toFloat())
+        }
+        listOf(tClase to "Clase", tOutra to "Outra (raiada)").forEach { (t, s) ->
+            t.text = s; t.gravity = Gravity.CENTER; t.textSize = 14f; t.typeface = Typeface.DEFAULT_BOLD
+            t.setPadding(0, dp(11), 0, dp(11))
+        }
+        tClase.setOnClickListener { other = false; paintT() }
+        tOutra.setOnClickListener { other = true; paintT() }
+        val tRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        tRow.addView(tClase, lp(0, -2, wt = 1f)); tRow.addView(tOutra, lp(0, -2, l = 6, wt = 1f))
+        box.addView(tRow)
+        label("Cor da materia (se non elixes, asígnase soa)")
+        val swatches = mutableListOf<TextView>()
+        fun paintSw() = swatches.forEachIndexed { i, t ->
+            t.background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat(); setColor(Data.paletteColor(i))
+                if (picked == i) setStroke(dp(3), INK) else setStroke(dp(1), Color.parseColor("#55FFFFFF"))
+            }
+        }
+        for (rowN in 0..1) {
+            val lr = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (i in rowN * 6 until rowN * 6 + 6) {
+                val t = TextView(this).apply {
+                    text = Data.GLYPHS[i]; gravity = Gravity.CENTER; textSize = 16f
+                    setTextColor(Data.textOn(Data.paletteColor(i))); setOnClickListener { picked = i; paintSw() }
+                }
+                swatches.add(t); lr.addView(t, lp(0, dp(40), l = if (i % 6 == 0) 0 else 6, wt = 1f))
+            }
+            box.addView(lr, lp(-1, -2, b = 6))
+        }
+        paintSw()
+        refresh = { paintT(); paintSw() }; refresh()
+        label("Sesións: día, hora e aula (cada sesión pode ter a súa)")
         box.addView(sessBox)
         box.addView(TextView(this).apply {
             text = "+  Outro día ou hora"; textSize = 14f; setTextColor(INK); gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD
             background = round(CARD, 12); setPadding(0, dp(10), 0, dp(10))
             setOnClickListener {
                 val l = sess.last()
-                sess.add(Sess(minOf(l.day + 1, 4), l.st, l.en)); active = sess.size - 1; renderS()
+                sess.add(Sess(minOf(l.day + 1, 4), l.st, l.en, l.room)); active = sess.size - 1; renderS()
             }
         })
         if (slots.isNotEmpty()) {
@@ -261,8 +319,9 @@ class MainActivity : Activity() {
                 else -> {
                     val dt = det.text.toString().trim().replace(";", ",")
                     items.removeAll(group.toSet())
-                    sess.forEach { s -> items.add(Item(s.day, s.st, s.en, nm, dt)) }
+                    sess.forEach { s -> items.add(Item(s.day, s.st, s.en, nm, dt, s.room.trim().replace(";", ","), other)) }
                     items = items.distinct().toMutableList()
+                    picked?.let { Data.setColor(this, nm, it) }
                     commit(); d.dismiss()
                 }
             }

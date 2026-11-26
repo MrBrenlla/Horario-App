@@ -3,4 +3,8 @@
     android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
     <ImageView android:id="@+id/img" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY"/>
+    <ImageView android:id="@+id/refresh" android:layout_width="30dp" android:layout_height="30dp"
+        android:layout_gravity="bottom|end" android:layout_margin="6dp" android:padding="6dp"
+        android:src="@drawable/ic_refresh" android:background="@drawable/bg_refresh"
+        android:contentDescription="@string/refresh"/>
 </FrameLayout>
