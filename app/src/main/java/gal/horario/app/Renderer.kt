@@ -9,33 +9,6 @@ object Renderer {
     private val DARK = Color.parseColor("#1D2137")
 
     private fun paint(c: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = c }
-    private fun glyph(c: Canvas, k: Int, x: Float, y: Float, r: Float, p: Paint) {
-        val q = Paint(p); q.style = Paint.Style.FILL
-        val pa = Path()
-        when (k) {
-            0 -> c.drawCircle(x, y, r, q)
-            1 -> c.drawRect(x - r * .85f, y - r * .85f, x + r * .85f, y + r * .85f, q)
-            2 -> { pa.moveTo(x, y - r); pa.lineTo(x + r, y + r * .8f); pa.lineTo(x - r, y + r * .8f); pa.close(); c.drawPath(pa, q) }
-            3 -> { pa.moveTo(x, y - r); pa.lineTo(x + r, y); pa.lineTo(x, y + r); pa.lineTo(x - r, y); pa.close(); c.drawPath(pa, q) }
-            4 -> { val t = r * .35f; c.drawRect(x - r, y - t, x + r, y + t, q); c.drawRect(x - t, y - r, x + t, y + r, q) }
-            5 -> {
-                for (i in 0 until 10) {
-                    val a = Math.PI * i / 5 - Math.PI / 2; val rr = if (i % 2 == 0) r else r * .45f
-                    val px = (x + rr * Math.cos(a)).toFloat(); val py = (y + rr * Math.sin(a)).toFloat()
-                    if (i == 0) pa.moveTo(px, py) else pa.lineTo(px, py)
-                }
-                pa.close(); c.drawPath(pa, q)
-            }
-            6 -> { pa.moveTo(x, y + r); pa.lineTo(x + r, y - r * .8f); pa.lineTo(x - r, y - r * .8f); pa.close(); c.drawPath(pa, q) }
-            7 -> { q.style = Paint.Style.STROKE; q.strokeWidth = r * .4f; c.drawCircle(x, y, r * .8f, q) }
-            8 -> c.drawArc(RectF(x - r, y - r, x + r, y + r), 90f, 180f, true, q)
-            9 -> { q.style = Paint.Style.STROKE; q.strokeWidth = r * .4f; c.drawRect(x - r * .75f, y - r * .75f, x + r * .75f, y + r * .75f, q) }
-            10 -> { val t = r * .3f; c.save(); c.rotate(45f, x, y); c.drawRect(x - r * 1.1f, y - t, x + r * 1.1f, y + t, q); c.drawRect(x - t, y - r * 1.1f, x + t, y + r * 1.1f, q); c.restore() }
-            11 -> { pa.moveTo(x - r * .8f, y - r); pa.lineTo(x + r, y); pa.lineTo(x - r * .8f, y + r); pa.close(); c.drawPath(pa, q) }
-            else -> c.drawCircle(x, y, r, q)
-        }
-    }
-
     private fun nextItem(items: List<Item>, dow: Int, now: Int): Pair<Item, Int>? {
         for (k in 0..7) {
             val d = (dow + k) % 7
@@ -77,18 +50,9 @@ object Renderer {
         today.forEach {
             pa.color = Data.color(it.name)
             val a0 = ang(it.start.coerceIn(S, E)); val a1 = ang(it.end.coerceIn(S, E))
+            if (it.other) pa.pathEffect = DashPathEffect(floatArrayOf(sw * 0.3f, sw * 0.3f), 0f)
             c.drawArc(oval, a0 - 89f, a1 - a0 - 2f, false, pa)
-            if (it.other) {
-                val dp2 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    style = Paint.Style.STROKE; strokeWidth = sw; color = Color.argb(130, 29, 33, 55)
-                    pathEffect = DashPathEffect(floatArrayOf(sw * 0.25f, sw * 0.3f), 0f)
-                }
-                c.drawArc(oval, a0 - 89f, a1 - a0 - 2f, false, dp2)
-            }
-            if (a1 - a0 > 9f) {
-                val q = Math.toRadians(((a0 + a1) / 2f).toDouble())
-                glyph(c, Data.shape(it.name), cx + (rad * Math.sin(q)).toFloat(), cy - (rad * Math.cos(q)).toFloat(), sw * 0.26f, paint(Data.textOn(Data.color(it.name))))
-            }
+            pa.pathEffect = null
         }
         val cur = if (live) today.firstOrNull { now >= it.start && now < it.end } else null
         if (live) {
@@ -139,7 +103,7 @@ object Renderer {
             shown.take(max).forEach {
                 val isCur = live && now >= it.start && now < it.end
                 if (isCur) c.drawRoundRect(rg.left, y, rg.right, y + rowH - 4f, 14f, 14f, paint(Color.argb(38, 255, 255, 255)))
-                glyph(c, Data.shape(it.name), rg.left + 16f, y + rowH / 2f - 2f, ts * 0.38f, paint(Data.color(it.name)))
+                c.drawRoundRect(rg.left + 8f, y + rowH * 0.18f, rg.left + 14f, y + rowH - rowH * 0.18f - 4f, 4f, 4f, paint(Data.color(it.name)))
                 val base = y + rowH / 2f + ts * 0.3f
                 np.textSize = ts * 0.78f
                 c.drawText(Data.fmt(it.start), rg.left + 32f, base, np)
@@ -191,11 +155,10 @@ object Renderer {
             val x0 = lw + it.day * cw + 2
             val r = RectF(x0, y(it.start) + 1, x0 + cw - 4, y(it.end) - 1)
             cp.color = Data.color(it.name)
-            c.drawRoundRect(r, 10f, 10f, cp)
-            if (it.other) drawStripes(c, r, 10f, Color.argb(100, 29, 33, 55), 12f, 4f)
-            if (r.height() > 22f) glyph(c, Data.shape(it.name), r.left + minOf(cw * 0.1f, 14f), r.top + minOf(cw * 0.1f, 14f), minOf(cw * 0.05f, 8f), paint(Data.textOn(cp.color)))
+            if (it.other) drawStripes(c, r, 10f, cp.color, 18f, 7f) else c.drawRoundRect(r, 10f, 10f, cp)
             if (r.height() > 18f) {
-                ip.color = Data.textOn(cp.color)
+                ip.color = if (it.other) INK else Data.textOn(cp.color)
+                if (it.other) ip.setShadowLayer(4f, 0f, 0f, DARK) else ip.clearShadowLayer()
                 ip.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 fit(ip, it.name, r.width() * 0.88f, minOf(r.height() * 0.4f, cw * 0.2f))
                 val big = ip.textSize

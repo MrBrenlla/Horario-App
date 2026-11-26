@@ -99,14 +99,14 @@ class MainActivity : Activity() {
         rows.forEach { (idx, row) ->
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                background = if (row.other) StripeDrawable(CARD, Color.argb(40, 255, 255, 255), dp(18).toFloat(), dp(10).toFloat(), dp(3).toFloat()) else round(CARD, 18)
+                background = if (row.other) StripeDrawable(Color.TRANSPARENT, CARD, dp(18).toFloat(), dp(14).toFloat(), dp(9).toFloat()) else round(CARD, 18)
                 setPadding(dp(12), dp(12), dp(16), dp(12))
                 setOnClickListener { edit(idx) }
             }
             card.addView(View(this).apply { background = round(Data.color(row.name), 4) },
                 LinearLayout.LayoutParams(dp(6), dp(46)).apply { rightMargin = dp(14) })
             val tx = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            tx.addView(TextView(this).apply { text = "${Data.GLYPHS[Data.shape(row.name)]}  ${row.name}"; textSize = 19f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD })
+            tx.addView(TextView(this).apply { text = row.name; textSize = 19f; setTextColor(INK); typeface = Typeface.DEFAULT_BOLD })
             val sub = listOf(row.detail, Data.roomLabel(row.room)).filter { s -> s.isNotEmpty() }.joinToString(" · ")
             if (sub.isNotEmpty()) tx.addView(TextView(this).apply { text = sub; textSize = 13f; setTextColor(MUT) })
             card.addView(tx, lp(0, -2, wt = 1f))
@@ -242,7 +242,7 @@ class MainActivity : Activity() {
 
         if (used.isNotEmpty()) {
             label("Materias que xa usaches (toca para copiar)", 0)
-            box.addView(hrow(used.map { (n, d) -> chip("${Data.GLYPHS[Data.shape(n)]} " + (if (d.isEmpty()) n else "$n · $d"), Data.color(n)) {
+            box.addView(hrow(used.map { (n, d) -> chip(if (d.isEmpty()) n else "$n · $d", Data.color(n)) {
                 name.setText(n); det.setText(d); name.setSelection(n.length)
                 other = items.firstOrNull { x -> x.name == n && x.detail == d }?.other ?: false
                 picked = Data.shape(n); refresh() } }))
@@ -278,7 +278,7 @@ class MainActivity : Activity() {
             val lr = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             for (i in rowN * 6 until rowN * 6 + 6) {
                 val t = TextView(this).apply {
-                    text = Data.GLYPHS[i]; gravity = Gravity.CENTER; textSize = 16f
+                    gravity = Gravity.CENTER; textSize = 16f
                     setTextColor(Data.textOn(Data.paletteColor(i))); setOnClickListener { picked = i; paintSw() }
                 }
                 swatches.add(t); lr.addView(t, lp(0, dp(40), l = if (i % 6 == 0) 0 else 6, wt = 1f))
